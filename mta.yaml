@@ -1,0 +1,83 @@
+_schema-version: "3.1"
+ID: ServiceProvider
+description: ServiceProvider
+version: 1.0.0
+modules:
+- name: ServiceProvider-srv
+  type: nodejs
+  path: gen/srv
+  requires:
+  - name: ServiceProvider-auth
+  provides:
+  - name: srv-api
+    properties:
+      srv-url: ${default-url}
+  parameters:
+    buildpack: nodejs_buildpack
+  build-parameters:
+    builder: npm-ci
+- name: ServiceProvider-destination-content
+  type: com.sap.application.content
+  requires:
+  - name: ServiceProvider-destination-service
+    parameters:
+      content-target: true
+  - name: ServiceProvider_html_repo_host
+    parameters:
+      service-key:
+        name: ServiceProvider_html_repo_host-key
+  - name: ServiceProvider-auth
+    parameters:
+      service-key:
+        name: ServiceProvider-auth-key
+  - name: srv-api
+  parameters:
+    content:
+      subaccount:
+        destinations:
+        - Name: serviceprovider_ServiceProvider_html_repo_host
+          ServiceInstanceName: ServiceProvider-html5-app-host-service
+          ServiceKeyName: ServiceProvider_html_repo_host-key
+          sap.cloud.service: serviceprovider
+        - Authentication: OAuth2UserTokenExchange
+          Name: serviceprovider_ServiceProvider_auth
+          ServiceInstanceName: ServiceProvider-xsuaa-service
+          ServiceKeyName: ServiceProvider-auth-key
+          URL: ~{srv-api/srv-url}
+          sap.cloud.service: serviceprovider
+        existing_destinations_policy: ignore
+  build-parameters:
+    no-source: true
+resources:
+- name: ServiceProvider-auth
+  type: org.cloudfoundry.managed-service
+  parameters:
+    config:
+      tenant-mode: dedicated
+      xsappname: ServiceProvider
+    path: ./xs-security.json
+    service: xsuaa
+    service-name: ServiceProvider-xsuaa-service
+    service-plan: application
+- name: ServiceProvider-destination-service
+  type: org.cloudfoundry.managed-service
+  parameters:
+    config:
+      HTML5Runtime_enabled: true
+      version: 1.0.0
+    service: destination
+    service-name: ServiceProvider-destination-service
+    service-plan: lite
+- name: ServiceProvider_html_repo_host
+  type: org.cloudfoundry.managed-service
+  parameters:
+    service: html5-apps-repo
+    service-name: ServiceProvider-html5-app-host-service
+    service-plan: app-host
+parameters:
+  enable-parallel-deployments: true
+build-parameters:
+  before-all:
+  - builder: custom
+    commands:
+    - npx -p @sap/cds-dk cds build --production
